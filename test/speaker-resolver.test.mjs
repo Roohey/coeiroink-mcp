@@ -53,6 +53,21 @@ test("resolveStyle: an empty styleName is treated as a real (non-matching) name,
   assert.throws(() => resolveStyle(SPEAKERS[0], ""), /れいせい.*げんき/s);
 });
 
+test("resolveStyle: throws when the styleName matches more than one style of the speaker", () => {
+  const dupStyles = { name: "重複", uuid: "uuid-dup", styles: [{ id: 5, name: "げんき" }, { id: 6, name: "げんき" }] };
+  assert.throws(() => resolveStyle(dupStyles, "げんき"), /複数見つかりました.*5, 6/s);
+});
+
+test("resolveStyle: throws when the speaker has no styles and a styleName is given", () => {
+  assert.throws(() => resolveStyle(SPEAKERS[2], "げんき"), /スタイル「げんき」が見つかりません/);
+});
+
+test("resolveStyle: matching is exact (no trimming, no partial or case-insensitive match)", () => {
+  assert.throws(() => resolveStyle(SPEAKERS[0], "げん"), /見つかりません/);
+  assert.throws(() => resolveStyle(SPEAKERS[0], " げんき"), /見つかりません/);
+  assert.throws(() => resolveStyle(SPEAKERS[1], "のーまる"), /見つかりません/);
+});
+
 function fakeClient() {
   return { listSpeakers: async () => SPEAKERS };
 }
