@@ -1,0 +1,8 @@
+{
+  "name": "coeiroink",
+  "version": "0.9.0",
+  "description": "Control COEIROINK/VOICEVOX text-to-speech from Claude Code: check engine status, list speakers, speak text aloud, or synthesize to a WAV file (including multi-speaker scripts).",
+  "author": {
+    "name": "gumi"
+  }
+}

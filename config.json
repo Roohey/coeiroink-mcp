@@ -1,0 +1,14 @@
+{
+  "engine": "coeiroink",
+  "coeiroinkUrl": "http://127.0.0.1:50032",
+  "voicevoxUrl": "http://127.0.0.1:50021",
+  "speakerUuid": "b28bb401-bc43-c9c7-77e4-77a2bbb4b283",
+  "styleId": 131,
+  "speedScale": 1.2,
+  "volumeScale": 0.4,
+  "pitchScale": 0.0,
+  "intonationScale": 1.0,
+  "prePhonemeLength": 0.1,
+  "postPhonemeLength": 0.1,
+  "outputSamplingRate": 44100
+}
