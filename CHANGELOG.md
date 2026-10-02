@@ -5,6 +5,12 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-27
+
+### Added
+
+- `synthesize_script` に任意の `scriptFormat`(`legacy`/`styled`)を追加し、`styled` では「話者名,スタイル名,セリフ」形式で行ごとにスタイルを指定できるようにした。スタイル欄が空の行はその話者の最初のスタイルを使い、省略時・`legacy` は従来の「話者名,セリフ」形式のまま動作する。([Issue #1](https://github.com/Roohey/coeiroink-mcp/issues/1))
+
 ## [0.9.0] - 2026-09-10
 
 ### Added

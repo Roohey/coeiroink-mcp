@@ -43,7 +43,7 @@ import {
 import { splitIntoSegments } from "./segment.js";
 import { findSpeakerByName, resolveNamedSpeaker, resolveStyle } from "./speaker-resolver.js";
 import { getWavDurationSeconds } from "./wav.js";
-import { parseScript, sanitizeFileNamePart, type ScriptLine } from "./script.js";
+import { parseScript, sanitizeFileNamePart, SCRIPT_FORMATS, type ScriptLine } from "./script.js";
 import { ConcurrentPublishError, publishStagingDirectory } from "./atomic-publish.js";
 
 // package.json の version を単一の情報源として使う(plugin.json/marketplace.jsonはnpm run check:versionで同期を検証する)
@@ -527,7 +527,19 @@ const MAX_SYNTHESIZED_TOTAL_BYTES = 200 * 1024 * 1024; // 200MiB
 
 const synthesizeScriptInputSchema = z
   .object({
-    script: z.string().min(1).describe('1行につき「話者名,セリフ」形式の台本。空行・#始まりの行は無視する。'),
+    script: z
+      .string()
+      .min(1)
+      .describe(
+        "台本。1行につき、scriptFormat=legacy(既定)なら「話者名,セリフ」、styledなら「話者名,スタイル名,セリフ」。空行・#始まりの行は無視する。"
+      ),
+    scriptFormat: z
+      .enum(SCRIPT_FORMATS)
+      .optional()
+      .describe(
+        "台本の行形式(呼び出し全体に適用、自動判定なし)。省略時またはlegacyは「話者名,セリフ」(最初の半角カンマで区切り、各行は話者の最初のスタイル)。" +
+          "styledは「話者名,スタイル名,セリフ」(最初の2つの半角カンマで区切り、残りはすべてセリフ)。styledでスタイル欄を空にした行(例: `話者名,,セリフ`)は話者の最初のスタイルを使う。"
+      ),
     outputDir: z
       .string()
       .optional()
@@ -550,18 +562,20 @@ server.registerTool(
     title: "複数話者の台本をまとめて音声ファイルに合成する",
     description:
       "複数話者の台本をまとめて音声合成し、行ごとにWAVファイルとして書き出す(再生はしない)。" +
-      "scriptは1行につき「話者名,セリフ」の形式(例: `つくよみちゃん,こんにちは`)。空行と#で始まる行は無視する。" +
-      "話者名はlist_speakersのspeakers[].nameと完全一致している必要があり、スタイルは各話者の最初のスタイルが使われる。" +
-      "全行の話者名を解決できることを確認してから合成を開始する(一部の行だけ書き出されることはない)。" +
+      "scriptは1行につき「話者名,セリフ」の形式(例: `つくよみちゃん,こんにちは`)で、スタイルは各話者の最初のスタイルが使われる。" +
+      "行ごとにスタイルを指定したい場合はscriptFormat:\"styled\"を渡し、「話者名,スタイル名,セリフ」の形式で書く(例: `つくよみちゃん,げんき,こんにちは`。スタイル欄を空にした `つくよみちゃん,,こんにちは` は最初のスタイル)。" +
+      "空行と#で始まる行は無視する。話者名・スタイル名はlist_speakersのspeakers[].name/styles[].nameと完全一致している必要がある。" +
+      "全行の話者名・スタイル名を解決できることを確認してから合成を開始する(一部の行だけ書き出されることはない)。" +
       "各行の再生時間・ファイル名を含むmanifest.jsonをoutputDirに書き出す。順に読み上げたい場合は、" +
       "マニフェストを見ながらspeakを行ごとに呼び出すこと(このツール自体は再生しない)。",
     inputSchema: synthesizeScriptInputSchema,
   },
   async (rawArgs, extra) => {
-    const { script, outputDir, profile, ...ov } = rawArgs as z.infer<typeof synthesizeScriptInputSchema>;
+    // scriptFormatは台本処理用の引数なので、音声設定の上書き(ov)に混入させない。
+    const { script, scriptFormat, outputDir, profile, ...ov } = rawArgs as z.infer<typeof synthesizeScriptInputSchema>;
     let stagingDir: string | undefined;
     try {
-      const lines = parseScript(script);
+      const lines = parseScript(script, scriptFormat);
       const cfg = resolveEffectiveSettings(ov, profile);
       const client = getEngineClient(cfg.engine);
       const url = resolveEngineUrl(cfg);
@@ -591,14 +605,14 @@ server.registerTool(
       for (const line of lines) {
         try {
           const speaker = findSpeakerByName(speakers, line.speakerName);
-          const style = resolveStyle(speaker);
+          const style = resolveStyle(speaker, line.styleName);
           resolvedLines.push({ ...line, speakerUuid: speaker.uuid, styleId: style.id, styleName: style.name });
         } catch (e) {
           resolveErrors.push(`${line.lineNumber}行目: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
       if (resolveErrors.length > 0) {
-        throw new Error(`話者解決に失敗した行があります(合成は開始していません):\n${resolveErrors.join("\n")}`);
+        throw new Error(`話者・スタイルの解決に失敗した行があります(合成は開始していません):\n${resolveErrors.join("\n")}`);
       }
 
       // 全行の合成に成功するまではディスクに何も書き出さない。途中の行で合成が失敗しても、
